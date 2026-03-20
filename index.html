@@ -947,7 +947,7 @@ function applyFilters() {
     grid.innerHTML = lista.map(renderCard).join('');
   }
 
-  // Rebuild map markers
+  // Rebuild map markers — only show pins for filtered (visible) items
   markersLayer.clearLayers();
   markersMap = {};
   activeId = null;
@@ -955,9 +955,12 @@ function applyFilters() {
   IMOVEIS.forEach(im => {
     if (!im.lat || !im.lng) return;
     const visible = visibleIds.has(im.id);
+    // Only add markers for visible (filtered) items
+    if (!visible) return;
+
     const marker = L.marker([im.lat, im.lng], {
-      icon: makePriceIcon(im, visible),
-      zIndexOffset: visible ? 100 : 0,
+      icon: makePriceIcon(im, true),
+      zIndexOffset: 100,
     }).bindPopup(popupContent(im), { maxWidth: 290 });
 
     // Hover effect on label
@@ -971,9 +974,7 @@ function applyFilters() {
     });
 
     // Click on map marker → activate card
-    marker.on('click', () => {
-      if (visible) activateCard(im.id);
-    });
+    marker.on('click', () => activateCard(im.id));
 
     markersLayer.addLayer(marker);
     markersMap[im.id] = { marker };
