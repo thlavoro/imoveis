@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🏠 Busca de Imóveis — Fernando & Thiago</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:     #1565c0;
+      --blue-dk:  #0d47a1;
+      --blue-lt:  #e3f2fd;
+      --green:    #2e7d32;
+      --green-lt: #e8f5e9;
+      --amber:    #e65100;
+      --amber-lt: #fff3e0;
+      --gray:     #546e7a;
+      --gray-lt:  #eceff1;
+      --font:     'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    /* ── PAGE STRUCTURE ─────────────────────────────────────── */
+    html, body {
+      height: 100%;
+      font-family: var(--font);
+      background: #f7f7f7;
+      color: #222;
+      overflow: hidden;
+    }
+
+    /* Full-page flex column */
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── TOP BAR ─────────────────────────────────────────────── */
+    .topbar {
+      flex-shrink: 0;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: .6rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      z-index: 500;
+    }
+    .topbar-brand {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--blue-dk);
+      white-space: nowrap;
+      letter-spacing: -.3px;
+    }
+    .topbar-brand span { color: var(--blue); }
+
+    .topbar-refs {
+      display: flex;
+      gap: .5rem;
+      flex-wrap: wrap;
+    }
+    .ref-pill {
+      display: flex;
+      align-items: center;
+      gap: .3rem;
+      background: var(--blue-lt);
+      border-radius: 999px;
+      padding: .22rem .7rem;
+      font-size: .72rem;
+      color: var(--blue-dk);
+      font-weight: 500;
+    }
+    .ref-pill svg { flex-shrink: 0; }
+
+    .topbar-stats {
+      display: flex;
+      gap: .75rem;
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
+    .tstat {
+      font-size: .78rem;
+      color: var(--gray);
+      white-space: nowrap;
+    }
+    .tstat strong { color: #222; }
+
+    /* ── FILTER BAR ──────────────────────────────────────────── */
+    .filterbar {
+      flex-shrink: 0;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: .5rem 1.25rem;
+      display: flex;
+      align-items: flex-end;
+      gap: .6rem;
+      flex-wrap: wrap;
+      z-index: 499;
+    }
+    .fg {
+      display: flex;
+      flex-direction: column;
+      gap: .15rem;
+    }
+    .fg label {
+      font-size: .64rem;
+      font-weight: 700;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+    .fg select {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: .3rem .55rem;
+      font-size: .8rem;
+      background: #fafafa;
+      color: #222;
+      cursor: pointer;
+      outline: none;
+      min-width: 110px;
+    }
+    .fg select:focus { border-color: var(--blue); }
+
+    .fg-price { min-width: 150px; }
+    .fg-price input[type=range] {
+      width: 100%;
+      accent-color: var(--blue);
+      border: none;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+    }
+    .price-lbl { font-size: .72rem; color: var(--blue); font-weight: 700; }
+
+    .btn-reset {
+      background: var(--gray-lt);
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: .32rem .8rem;
+      font-size: .78rem;
+      color: var(--gray);
+      cursor: pointer;
+      font-weight: 600;
+      align-self: flex-end;
+      transition: background .15s;
+    }
+    .btn-reset:hover { background: #cfd8dc; }
+
+    .count-lbl {
+      margin-left: auto;
+      align-self: flex-end;
+      font-size: .78rem;
+      color: var(--gray);
+      white-space: nowrap;
+    }
+    .count-lbl strong { color: #222; }
+
+    /* ── MAIN CONTENT (fills remaining height) ───────────────── */
+    .content {
+      flex: 1;
+      display: flex;
+      min-height: 0; /* critical for flex children to respect overflow */
+      overflow: hidden;
+    }
+
+    /* ── LEFT: CARDS PANEL ───────────────────────────────────── */
+    .panel-cards {
+      width: 52%;
+      min-width: 340px;
+      overflow-y: auto;
+      padding: 1rem 1.25rem;
+      background: #f7f7f7;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    /* ── CARD ────────────────────────────────────────────────── */
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.09), 0 2px 16px rgba(0,0,0,.06);
+      overflow: hidden;
+      cursor: pointer;
+      transition: box-shadow .18s, transform .18s;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .card:hover {
+      box-shadow: 0 4px 20px rgba(0,0,0,.15);
+      transform: translateY(-2px);
+    }
+    .card.active {
+      box-shadow: 0 0 0 3px var(--blue), 0 4px 20px rgba(21,101,192,.2);
+      transform: translateY(-2px);
+    }
+
+    /* price stripe */
+    .card-stripe { height: 4px; }
+    .s-low  { background: linear-gradient(90deg,#43a047,#66bb6a); }
+    .s-mid  { background: linear-gradient(90deg,#fb8c00,#ffa726); }
+    .s-high { background: linear-gradient(90deg,#e53935,#ef5350); }
+
+    /* badges */
+    .card-badges {
+      position: absolute;
+      top: .55rem;
+      left: .55rem;
+      display: flex;
+      gap: .3rem;
+      flex-wrap: wrap;
+    }
+    .badge {
+      border-radius: 999px;
+      padding: .15rem .5rem;
+      font-size: .65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+    .b-casa    { background: var(--blue-lt);  color: var(--blue-dk); }
+    .b-sobrado { background: #ede7f6;          color: #4527a0; }
+    .b-terreo  { background: var(--green-lt);  color: var(--green); }
+    .b-cond    { background: #fce4ec;          color: #880e4f; }
+    .b-vila    { background: #e0f2f1;          color: #00695c; }
+    .b-novo    { background: var(--amber-lt);  color: var(--amber); }
+    .b-cnm     { background: #e8eaf6;          color: #283593; }
+    .b-qa      { background: #fce4ec;          color: #880e4f; }
+
+    .card-body {
+      padding: .75rem .9rem .55rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: .35rem;
+    }
+    .card-title {
+      font-size: .85rem;
+      font-weight: 700;
+      color: #1a237e;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .card-loc {
+      display: flex;
+      align-items: flex-start;
+      gap: .3rem;
+      font-size: .73rem;
+      color: var(--gray);
+      line-height: 1.3;
+    }
+    .card-loc svg { flex-shrink: 0; margin-top: 1px; }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .28rem;
+    }
+    .chip {
+      display: flex;
+      align-items: center;
+      gap: .2rem;
+      background: var(--gray-lt);
+      border-radius: 5px;
+      padding: .18rem .42rem;
+      font-size: .7rem;
+      color: #455a64;
+      font-weight: 500;
+    }
+    .chip.g { background: var(--green-lt); color: var(--green); }
+    .chip.b { background: var(--blue-lt);  color: var(--blue); }
+
+    .jardim-quote {
+      background: var(--green-lt);
+      border-left: 3px solid var(--green);
+      border-radius: 0 5px 5px 0;
+      padding: .28rem .5rem;
+      font-size: .69rem;
+      color: #2e7d32;
+      font-style: italic;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-foot {
+      padding: .5rem .9rem .65rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid #f0f0f0;
+      gap: .5rem;
+    }
+    .card-price {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #1a237e;
+      line-height: 1;
+    }
+    .card-price small {
+      display: block;
+      font-size: .62rem;
+      font-weight: 400;
+      color: var(--gray);
+      margin-top: .1rem;
+    }
+    .btn-link {
+      display: inline-flex;
+      align-items: center;
+      gap: .28rem;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: .38rem .8rem;
+      font-size: .75rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .btn-link:hover { background: var(--blue-dk); }
+
+    /* empty state */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--gray);
+      font-size: .9rem;
+    }
+
+    /* ── RIGHT: MAP PANEL ────────────────────────────────────── */
+    .panel-map {
+      flex: 1;
+      position: relative;
+      border-left: 1px solid #e0e0e0;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Price label markers (Airbnb style) */
+    .price-label {
+      background: #fff;
+      border: 1.5px solid #ccc;
+      border-radius: 999px;
+      padding: .22rem .55rem;
+      font-size: .72rem;
+      font-weight: 700;
+      color: #222;
+      white-space: nowrap;
+      box-shadow: 0 1px 5px rgba(0,0,0,.2);
+      cursor: pointer;
+      transition: transform .12s, background .12s, border-color .12s, box-shadow .12s;
+    }
+    .price-label:hover,
+    .price-label.hovered {
+      background: #222;
+      color: #fff;
+      border-color: #222;
+      transform: scale(1.12);
+      box-shadow: 0 3px 10px rgba(0,0,0,.3);
+      z-index: 9999 !important;
+    }
+    .price-label.active {
+      background: var(--blue-dk);
+      color: #fff;
+      border-color: var(--blue-dk);
+      transform: scale(1.18);
+      box-shadow: 0 3px 12px rgba(13,71,161,.4);
+      z-index: 9999 !important;
+    }
+
+    /* Reference markers */
+    .ref-marker {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,.35);
+    }
+
+    /* Map legend */
+    .map-legend {
+      position: absolute;
+      bottom: 28px;
+      right: 10px;
+      background: rgba(255,255,255,.96);
+      border-radius: 10px;
+      padding: .5rem .75rem;
+      font-size: .7rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+      z-index: 1000;
+      line-height: 1.9;
+    }
+    .leg-row { display: flex; align-items: center; gap: .4rem; }
+    .leg-dot {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(0,0,0,.15);
+      flex-shrink: 0;
+    }
+
+    /* Popup */
+    .leaflet-popup-content {
+      font-family: var(--font);
+      font-size: .8rem;
+      min-width: 210px;
+      max-width: 270px;
+    }
+    .pop-title {
+      font-weight: 700;
+      color: #1a237e;
+      font-size: .83rem;
+      line-height: 1.3;
+      margin-bottom: .35rem;
+    }
+    .pop-price {
+      font-size: .98rem;
+      font-weight: 800;
+      color: #1a237e;
+      margin-bottom: .3rem;
+    }
+    .pop-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .22rem;
+      margin-bottom: .35rem;
+    }
+    .pop-chip {
+      background: var(--gray-lt);
+      border-radius: 4px;
+      padding: .12rem .38rem;
+      font-size: .67rem;
+      color: #455a64;
+    }
+    .pop-chip.g { background: var(--green-lt); color: var(--green); }
+    .pop-link {
+      display: inline-block;
+      background: var(--blue);
+      color: #fff;
+      border-radius: 6px;
+      padding: .28rem .65rem;
+      font-size: .72rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .pop-link:hover { background: var(--blue-dk); }
+
+    /* ── MOBILE TOGGLE BAR ─────────────────────────────────── */
+    .mobile-toggle {
+      display: none;
+    }
+
+    /* ── RESPONSIVE ──────────────────────────────────────────── */
+    @media (max-width: 800px) {
+      html, body { overflow: hidden; }
+
+      /* Top bar: compacto */
+      .topbar {
+        padding: .45rem .75rem;
+        gap: .5rem;
+      }
+      .topbar-brand { font-size: .95rem; }
+      .topbar-refs { display: none; }
+      .topbar-stats {
+        margin-left: 0;
+        gap: .4rem;
+        font-size: .7rem;
+        flex-wrap: wrap;
+      }
+      .tstat { font-size: .68rem; }
+
+      /* Filter bar: scroll horizontal */
+      .filterbar {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding: .4rem .75rem;
+        gap: .4rem;
+        -webkit-overflow-scrolling: touch;
+      }
+      .fg { flex-shrink: 0; }
+      .fg select { font-size: .75rem; min-width: 90px; }
+      .fg-price { min-width: 130px; }
+      .count-lbl { display: none; }
+
+      /* Toggle bar */
+      .mobile-toggle {
+        display: flex;
+        flex-shrink: 0;
+        background: #fff;
+        border-bottom: 1px solid #e0e0e0;
+        z-index: 498;
+      }
+      .toggle-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        padding: .55rem;
+        font-size: .82rem;
+        font-weight: 700;
+        color: var(--gray);
+        background: none;
+        border: none;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        transition: color .15s, border-color .15s;
+      }
+      .toggle-btn.active {
+        color: var(--blue-dk);
+        border-bottom-color: var(--blue-dk);
+      }
+      .toggle-btn svg { flex-shrink: 0; }
+
+      /* Content: full height, panels stacked */
+      .content {
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* Cards panel: full screen, hidden by default on mobile */
+      .panel-cards {
+        width: 100%;
+        min-width: 0;
+        overflow-y: auto;
+        flex: 1;
+        display: none;
+        padding: .75rem;
+      }
+      .panel-cards.mobile-visible {
+        display: block;
+      }
+
+      /* Map panel: full screen, shown by default on mobile */
+      .panel-map {
+        flex: 1;
+        border-left: none;
+        border-top: none;
+        display: none;
+      }
+      .panel-map.mobile-visible {
+        display: block;
+      }
+
+      /* Cards: single column on mobile */
+      .cards-grid {
+        grid-template-columns: 1fr;
+      }
+
+      /* Map legend: smaller on mobile */
+      .map-legend {
+        font-size: .65rem;
+        padding: .35rem .5rem;
+        bottom: 20px;
+        right: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── TOP BAR ──────────────────────────────────────────────── -->
+<div class="topbar">
+  <div class="topbar-brand">🏠 Imóveis <span>Fernando &amp; Thiago</span></div>
+  <div class="topbar-refs">
+    <span class="ref-pill">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      Fernando — Rua Major Carlos del Prete, 541, SCS
+    </span>
+    <span class="ref-pill">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      Thiago — R. Leopoldo Couto Magalhães Jr., 987, Itaim Bibi
+    </span>
+  </div>
+  <div class="topbar-stats">
+    <span class="tstat"><strong id="stTotal">—</strong> imóveis</span>
+    <span class="tstat">menor <strong id="stMin">—</strong></span>
+    <span class="tstat">médio <strong id="stAvg">—</strong></span>
+    <span class="tstat"><strong id="stCNM">—</strong> Chaves na Mão</span>
+    <span class="tstat"><strong id="stQA">—</strong> QuintoAndar</span>
+    <span class="tstat"><strong id="stBairros">—</strong> bairros</span>
+    <span class="tstat">atualizado <strong id="stData">—</strong></span>
+  </div>
+</div>
+
+<!-- ── FILTER BAR ────────────────────────────────────────────── -->
+<div class="filterbar">
+  <div class="fg">
+    <label>Tipo</label>
+    <select id="fTipo">
+      <option value="">Todos</option>
+      <option value="Casa Térrea">Casa Térrea</option>
+      <option value="Sobrado">Sobrado</option>
+      <option value="Casa">Casa</option>
+      <option value="Casa de Vila">Casa de Vila</option>
+      <option value="Casa em Condomínio">Condomínio</option>
+    </select>
+  </div>
+  <div class="fg">
+    <label>Bairro</label>
+    <select id="fBairro"><option value="">Todos</option></select>
+  </div>
+  <div class="fg">
+    <label>Quartos</label>
+    <select id="fQuartos">
+      <option value="0">Qualquer</option>
+      <option value="2">2+</option>
+      <option value="3">3+</option>
+      <option value="4">4+</option>
+    </select>
+  </div>
+  <div class="fg fg-price">
+    <label>Preço máximo</label>
+    <input type="range" id="fPreco" min="300000" max="900000" step="25000" value="900000" />
+    <div class="price-lbl" id="precoLbl">até R$ 900.000</div>
+  </div>
+  <div class="fg">
+    <label>Fonte</label>
+    <select id="fFonte">
+      <option value="">Todas</option>
+      <option value="Chaves na Mão">Chaves na Mão</option>
+      <option value="QuintoAndar">QuintoAndar</option>
+    </select>
+  </div>
+  <div class="fg">
+    <label>Condição</label>
+    <select id="fNovo">
+      <option value="">Todos</option>
+      <option value="novo">Novo / reformado</option>
+    </select>
+  </div>
+  <div class="fg">
+    <label>Ordenar</label>
+    <select id="fOrdem">
+      <option value="preco_asc">Menor preço</option>
+      <option value="preco_desc">Maior preço</option>
+      <option value="area_desc">Maior área</option>
+      <option value="quartos_desc">Mais quartos</option>
+      <option value="novo">Novos primeiro</option>
+    </select>
+  </div>
+  <button class="btn-reset" onclick="resetFilters()">↺ Limpar</button>
+  <div class="count-lbl" id="countLbl"></div>
+</div>
+
+<!-- ── MOBILE TOGGLE ─────────────────────────────────────────────────── -->
+<div class="mobile-toggle">
+  <button class="toggle-btn" id="btnMapa" onclick="showMobile('mapa')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+      <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+      <line x1="8" y1="2" x2="8" y2="18"/>
+      <line x1="16" y1="6" x2="16" y2="22"/>
+    </svg>
+    Mapa
+  </button>
+  <button class="toggle-btn" id="btnLista" onclick="showMobile('lista')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+      <line x1="8" y1="6" x2="21" y2="6"/>
+      <line x1="8" y1="12" x2="21" y2="12"/>
+      <line x1="8" y1="18" x2="21" y2="18"/>
+      <line x1="3" y1="6" x2="3.01" y2="6"/>
+      <line x1="3" y1="12" x2="3.01" y2="12"/>
+      <line x1="3" y1="18" x2="3.01" y2="18"/>
+    </svg>
+    Lista
+  </button>
+</div>
+
+<!-- ── CONTENT ───────────────────────────────────────────────────── -->
+<div class="content">
+
+  <!-- Cards -->
+  <div class="panel-cards">
+    <div class="cards-grid" id="cardsGrid"></div>
+  </div>
+
+  <!-- Map -->
+  <div class="panel-map">
+    <div id="map"></div>
+    <div class="map-legend">
+      <div class="leg-row"><div class="leg-dot" style="background:#43a047"></div> até R$ 550k</div>
+      <div class="leg-row"><div class="leg-dot" style="background:#fb8c00"></div> até R$ 750k</div>
+      <div class="leg-row"><div class="leg-dot" style="background:#e53935"></div> até R$ 900k</div>
+      <div class="leg-row"><div class="leg-dot" style="background:#1565c0;border-color:#fff"></div> Ref. Fernando</div>
+      <div class="leg-row"><div class="leg-dot" style="background:#6a1b9a;border-color:#fff"></div> Ref. Thiago</div>
+      <div style="border-top:1px solid #e0e0e0;margin:.3rem 0"></div>
+      <div class="leg-row"><span style="font-size:.65rem;font-weight:700;background:#e8eaf6;color:#283593;border-radius:3px;padding:.1rem .3rem">CNM</span> Chaves na Mão</div>
+      <div class="leg-row"><span style="font-size:.65rem;font-weight:700;background:#fce4ec;color:#880e4f;border-radius:3px;padding:.1rem .3rem">QA</span> QuintoAndar</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ── Helpers ──────────────────────────────────────────────────
+function fmtR(v) {
+  if (!v) return 'Consultar';
+  return 'R$ ' + v.toLocaleString('pt-BR');
+}
+function fmtK(v) {
+  if (!v) return '—';
+  return v >= 1e6
+    ? 'R$ ' + (v/1e6).toFixed(2).replace('.',',') + ' M'
+    : 'R$ ' + Math.round(v/1000) + ' k';
+}
+function tipoImovel(t) {
+  const s = t.toLowerCase();
+  if (s.includes('sobrado'))                                              return 'Sobrado';
+  if (s.includes('casa de vila') || (s.includes('vila')&&s.includes('casa'))) return 'Casa de Vila';
+  if (s.includes('condomínio') || s.includes('cond.'))                   return 'Casa em Condomínio';
+  if (s.includes('casa térrea') || s.includes('térrea'))                 return 'Casa Térrea';
+  return 'Casa';
+}
+function badgeClass(tipo) {
+  return {
+    'Sobrado':'b-sobrado','Casa de Vila':'b-vila',
+    'Casa em Condomínio':'b-cond','Casa Térrea':'b-terreo','Casa':'b-casa'
+  }[tipo] || 'b-casa';
+}
+function stripeClass(v) {
+  if (v <= 550000) return 's-low';
+  if (v <= 750000) return 's-mid';
+  return 's-high';
+}
+function markerColor(v) {
+  if (v <= 550000) return '#43a047';
+  if (v <= 750000) return '#fb8c00';
+  return '#e53935';
+}
+function bairroNome(b) { return b ? b.split(',')[0].trim() : '—'; }
+function trunc(s, n) { return s && s.length > n ? s.slice(0,n)+'…' : (s||''); }
+
+// ── Map setup ────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19,
+}).addTo(map);
+
+// Reference markers
+function refIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="ref-marker" style="background:${color}"></div>`,
+    iconSize: [20,20], iconAnchor: [10,10],
+  });
+}
+const REF_F = { lat: -23.6228, lng: -46.5584 };
+const REF_T = { lat: -23.5875, lng: -46.6783 };
+L.marker([REF_F.lat, REF_F.lng], {icon: refIcon('#1565c0'), zIndexOffset: 1000})
+  .addTo(map).bindPopup('<b>📍 Fernando</b><br>Rua Major Carlos del Prete, 541 — SCS');
+L.marker([REF_T.lat, REF_T.lng], {icon: refIcon('#6a1b9a'), zIndexOffset: 1000})
+  .addTo(map).bindPopup('<b>📍 Thiago</b><br>R. Leopoldo Couto Magalhães Jr., 987 — Itaim Bibi');
+
+// Price label markers layer
+const markersLayer = L.layerGroup().addTo(map);
+let markersMap = {}; // id -> { marker, labelEl }
+let activeId = null;
+
+function makePriceIcon(im, visible) {
+  const color = markerColor(im.preco_valor);
+  const label = im.preco_valor ? 'R$ ' + Math.round(im.preco_valor/1000) + 'k' : '—';
+  return L.divIcon({
+    className: '',
+    html: `<div class="price-label" id="lbl-${im.id}" style="opacity:${visible?1:.3};border-color:${visible?'#ccc':'#ddd'}">${label}</div>`,
+    iconSize: null,
+    iconAnchor: [0, 0],
+  });
+}
+
+function popupContent(im) {
+  const tipo = tipoImovel(im.titulo);
+  const bairro = bairroNome(im.bairro);
+  const jardimCtx = im.jardim_contexto
+    ? im.jardim_contexto.replace(/^Descrição:\s*/i,'').replace(/^Título JSON:\s*/i,'').trim()
+    : null;
+  return `
+    <div class="pop-title">${trunc(im.titulo, 80)}</div>
+    <div class="pop-price">${fmtR(im.preco_valor)}</div>
+    <div class="pop-chips">
+      <span class="pop-chip">${tipo}</span>
+      ${im.fonte ? `<span class="pop-chip" style="background:${im.fonte==='QuintoAndar'?'#fce4ec':'#e8eaf6'};color:${im.fonte==='QuintoAndar'?'#880e4f':'#283593'}">${im.fonte}</span>` : ''}
+    ${im.quartos&&im.quartos!='N/A'?`<span class="pop-chip">🛏 ${im.quartos} qtos</span>`:''}
+      ${im.area_m2&&im.area_m2!='N/A'?`<span class="pop-chip">📐 ${im.area_m2} m²</span>`:''}
+      <span class="pop-chip g">🌿 Jardim</span>
+      <span class="pop-chip">🚗 Garagem</span>
+    </div>
+    <div style="font-size:.7rem;color:#546e7a;margin-bottom:.35rem">${bairro}</div>
+    ${jardimCtx?`<div style="font-size:.68rem;color:#2e7d32;font-style:italic;margin-bottom:.35rem">"${trunc(jardimCtx,100)}"</div>`:''}
+    <a class="pop-link" href="${im.url}" target="_blank" rel="noopener">Ver anúncio ↗</a>
+  `;
+}
+
+// ── Card rendering ───────────────────────────────────────────
+function renderCard(im) {
+  const tipo = tipoImovel(im.titulo);
+  const bairro = bairroNome(im.bairro);
+  const locStr = [
+    im.endereco && im.endereco !== '--' && im.endereco !== 'Endereço indisponível' ? im.endereco : '',
+    im.bairro || ''
+  ].filter(Boolean).join(' · ');
+  const isNovo = im.eh_novo_ou_pouco_usado;
+  const jardimCtx = im.jardim_contexto
+    ? im.jardim_contexto.replace(/^Descrição:\s*/i,'').replace(/^Título JSON:\s*/i,'').trim()
+    : null;
+  const vagas = im.vagas && im.vagas !== 'N/A' ? im.vagas : null;
+  const dataStr = im.data_coleta ? im.data_coleta.slice(0,10).split('-').reverse().join('/') : '—';
+
+  return `
+  <div class="card" data-id="${im.id}" onclick="activateCard('${im.id}')">
+    <div class="card-stripe ${stripeClass(im.preco_valor)}"></div>
+    <div class="card-badges">
+      <span class="badge ${badgeClass(tipo)}">${tipo}</span>
+      ${isNovo ? '<span class="badge b-novo">⭐ Novo</span>' : ''}
+      ${im.fonte === 'QuintoAndar' ? '<span class="badge b-qa">QA</span>' : '<span class="badge b-cnm">CNM</span>'}
+    </div>
+    <div class="card-body">
+      <div class="card-title">${im.titulo}</div>
+      <div class="card-loc">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+        </svg>
+        <span>${locStr || bairro}</span>
+      </div>
+      <div class="chips">
+        ${im.quartos&&im.quartos!='N/A'?`<span class="chip b">🛏 ${im.quartos} qto${im.quartos>1?'s':''}</span>`:''}
+        ${im.area_m2&&im.area_m2!='N/A'?`<span class="chip">📐 ${im.area_m2} m²</span>`:''}
+        ${vagas?`<span class="chip">🚗 ${vagas} vaga${vagas>1?'s':''}</span>`:`<span class="chip">🚗 Garagem</span>`}
+        <span class="chip g">🌿 Jardim</span>
+      </div>
+      ${jardimCtx?`<div class="jardim-quote">"${trunc(jardimCtx,140)}"</div>`:''}
+    </div>
+    <div class="card-foot">
+      <div class="card-price">
+        ${fmtR(im.preco_valor)}
+        <small>Coletado em ${dataStr}</small>
+      </div>
+      <a class="btn-link" href="${im.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+        Ver anúncio
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+          <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+        </svg>
+      </a>
+    </div>
+  </div>`;
+}
+
+// ── Activate card + map sync ─────────────────────────────────
+function activateCard(id) {
+  // Deactivate previous
+  if (activeId) {
+    const prevCard = document.querySelector(`.card[data-id="${activeId}"]`);
+    if (prevCard) prevCard.classList.remove('active');
+    const prevLbl = document.getElementById(`lbl-${activeId}`);
+    if (prevLbl) prevLbl.classList.remove('active');
+  }
+  activeId = id;
+
+  // Activate card
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (card) {
+    card.classList.add('active');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Activate map label + pan
+  const lbl = document.getElementById(`lbl-${id}`);
+  if (lbl) lbl.classList.add('active');
+
+  const entry = markersMap[id];
+  if (entry) {
+    map.setView(entry.marker.getLatLng(), Math.max(map.getZoom(), 14), { animate: true });
+    entry.marker.openPopup();
+  }
+}
+
+// ── State ────────────────────────────────────────────────────
+let IMOVEIS = [];
+let CURRENT = [];
+
+function applyFilters() {
+  const tipo   = document.getElementById('fTipo').value;
+  const bairro = document.getElementById('fBairro').value;
+  const quartos= parseInt(document.getElementById('fQuartos').value) || 0;
+  const precoMax = parseInt(document.getElementById('fPreco').value);
+  const novo   = document.getElementById('fNovo').value;
+  const ordem  = document.getElementById('fOrdem').value;
+
+  const fonte  = document.getElementById('fFonte').value;
+
+  let lista = IMOVEIS.filter(im => {
+    if (tipo   && tipoImovel(im.titulo) !== tipo) return false;
+    if (bairro && bairroNome(im.bairro) !== bairro) return false;
+    if (quartos && (parseInt(im.quartos)||0) < quartos) return false;
+    if (im.preco_valor && im.preco_valor > precoMax) return false;
+    if (novo === 'novo' && !im.eh_novo_ou_pouco_usado) return false;
+    if (fonte && im.fonte !== fonte) return false;
+    return true;
+  });
+
+  lista.sort((a, b) => {
+    if (ordem === 'preco_asc')    return (a.preco_valor||0) - (b.preco_valor||0);
+    if (ordem === 'preco_desc')   return (b.preco_valor||0) - (a.preco_valor||0);
+    if (ordem === 'area_desc')    return (parseInt(b.area_m2)||0) - (parseInt(a.area_m2)||0);
+    if (ordem === 'quartos_desc') return (parseInt(b.quartos)||0) - (parseInt(a.quartos)||0);
+    if (ordem === 'novo')         return (b.eh_novo_ou_pouco_usado?1:0) - (a.eh_novo_ou_pouco_usado?1:0);
+    return 0;
+  });
+
+  CURRENT = lista;
+  const visibleIds = new Set(lista.map(im => im.id));
+
+  // Render cards
+  const grid = document.getElementById('cardsGrid');
+  if (lista.length === 0) {
+    grid.innerHTML = `<div class="empty-state">Nenhum imóvel com esses filtros. Tente ampliar os critérios.</div>`;
+  } else {
+    grid.innerHTML = lista.map(renderCard).join('');
+  }
+
+  // Rebuild map markers
+  markersLayer.clearLayers();
+  markersMap = {};
+  activeId = null;
+
+  IMOVEIS.forEach(im => {
+    if (!im.lat || !im.lng) return;
+    const visible = visibleIds.has(im.id);
+    const marker = L.marker([im.lat, im.lng], {
+      icon: makePriceIcon(im, visible),
+      zIndexOffset: visible ? 100 : 0,
+    }).bindPopup(popupContent(im), { maxWidth: 290 });
+
+    // Hover effect on label
+    marker.on('mouseover', () => {
+      const lbl = document.getElementById(`lbl-${im.id}`);
+      if (lbl && im.id !== activeId) lbl.classList.add('hovered');
+    });
+    marker.on('mouseout', () => {
+      const lbl = document.getElementById(`lbl-${im.id}`);
+      if (lbl) lbl.classList.remove('hovered');
+    });
+
+    // Click on map marker → activate card
+    marker.on('click', () => {
+      if (visible) activateCard(im.id);
+    });
+
+    markersLayer.addLayer(marker);
+    markersMap[im.id] = { marker };
+  });
+
+  document.getElementById('countLbl').innerHTML =
+    `<strong>${lista.length}</strong> de <strong>${IMOVEIS.length}</strong> imóveis`;
+}
+
+function resetFilters() {
+  document.getElementById('fTipo').value    = '';
+  document.getElementById('fBairro').value  = '';
+  document.getElementById('fQuartos').value = '0';
+  document.getElementById('fPreco').value   = '900000';
+  document.getElementById('fNovo').value    = '';
+  document.getElementById('fOrdem').value   = 'preco_asc';
+  document.getElementById('fFonte').value   = '';
+  document.getElementById('precoLbl').textContent = 'até R$ 900.000';
+  applyFilters();
+}
+
+// ── Init ─────────────────────────────────────────────────────
+async function init() { // returns Promise implicitly (async function)
+  try {
+    const resp = await fetch('resultados.json');
+    IMOVEIS = await resp.json();
+  } catch(e) {
+    document.getElementById('cardsGrid').innerHTML =
+      '<div class="empty-state">Erro ao carregar dados. Verifique se <code>resultados.json</code> está na mesma pasta.</div>';
+    return;
+  }
+
+  // Populate bairro select
+  const bairros = [...new Set(IMOVEIS.map(im => bairroNome(im.bairro)))].sort();
+  const sel = document.getElementById('fBairro');
+  bairros.forEach(b => {
+    const o = document.createElement('option');
+    o.value = b; o.textContent = b;
+    sel.appendChild(o);
+  });
+
+  // Stats
+  const precos = IMOVEIS.map(im => im.preco_valor).filter(Boolean);
+  const novos  = IMOVEIS.filter(im => im.eh_novo_ou_pouco_usado).length;
+  const datas  = IMOVEIS.map(im => im.data_coleta).filter(Boolean).sort().reverse();
+  const dataStr = datas[0] ? datas[0].slice(0,10).split('-').reverse().join('/') : '—';
+
+  document.getElementById('stTotal').textContent   = IMOVEIS.length;
+  document.getElementById('stMin').textContent     = fmtK(Math.min(...precos));
+  document.getElementById('stAvg').textContent     = fmtK(Math.round(precos.reduce((a,b)=>a+b,0)/precos.length));
+  document.getElementById('stBairros').textContent = bairros.length;
+  document.getElementById('stData').textContent    = dataStr;
+  document.getElementById('stCNM').textContent     = IMOVEIS.filter(im => im.fonte === 'Chaves na Mão').length;
+  document.getElementById('stQA').textContent      = IMOVEIS.filter(im => im.fonte === 'QuintoAndar').length;
+
+  // Slider
+  document.getElementById('fPreco').addEventListener('input', e => {
+    document.getElementById('precoLbl').textContent =
+      'até R$ ' + parseInt(e.target.value).toLocaleString('pt-BR');
+    applyFilters();
+  });
+
+  // Other filters
+  ['fTipo','fBairro','fQuartos','fNovo','fOrdem','fFonte']
+    .forEach(id => document.getElementById(id).addEventListener('change', applyFilters));
+
+  // Initial render
+  applyFilters();
+
+  // Fit map bounds
+  const coords = IMOVEIS.filter(im => im.lat && im.lng).map(im => [im.lat, im.lng]);
+  coords.push([REF_F.lat, REF_F.lng], [REF_T.lat, REF_T.lng]);
+  if (coords.length) map.fitBounds(L.latLngBounds(coords), { padding: [30, 30] });
+}
+
+// ── Mobile toggle ────────────────────────────────────────────
+// On mobile, start with map visible; on desktop both panels always visible.
+let mobileView = 'mapa'; // 'mapa' | 'lista'
+
+function isMobile() { return window.innerWidth <= 800; }
+
+function showMobile(view) {
+  mobileView = view;
+  const cards = document.querySelector('.panel-cards');
+  const mapP  = document.querySelector('.panel-map');
+  const btnM  = document.getElementById('btnMapa');
+  const btnL  = document.getElementById('btnLista');
+
+  if (!isMobile()) {
+    // Desktop: always show both, no classes needed
+    cards.classList.remove('mobile-visible');
+    mapP.classList.remove('mobile-visible');
+    return;
+  }
+
+  if (view === 'mapa') {
+    cards.classList.remove('mobile-visible');
+    mapP.classList.add('mobile-visible');
+    btnM.classList.add('active');
+    btnL.classList.remove('active');
+    // Invalidate map size so tiles render correctly after being hidden
+    setTimeout(() => map.invalidateSize(), 50);
+  } else {
+    mapP.classList.remove('mobile-visible');
+    cards.classList.add('mobile-visible');
+    btnL.classList.add('active');
+    btnM.classList.remove('active');
+  }
+}
+
+// Apply correct state on load and on resize
+function applyMobileState() {
+  if (isMobile()) {
+    showMobile(mobileView);
+  } else {
+    // Desktop: remove mobile classes so CSS takes over
+    document.querySelector('.panel-cards').classList.remove('mobile-visible');
+    document.querySelector('.panel-map').classList.remove('mobile-visible');
+  }
+}
+
+window.addEventListener('resize', applyMobileState);
+
+init().then(() => applyMobileState());
+</script>
+</body>
+</html>
