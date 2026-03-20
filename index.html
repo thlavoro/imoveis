@@ -340,6 +340,85 @@
     }
     .btn-link:hover { background: var(--blue-dk); }
 
+    /* ── FAVORITOS / REJEIÇÕES ──────────────────────────────── */
+    .action-btns {
+      display: flex;
+      gap: .3rem;
+      margin-top: .45rem;
+    }
+    .btn-fav, .btn-rej, .btn-unseen {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .25rem;
+      border: 1.5px solid;
+      border-radius: 8px;
+      padding: .32rem .5rem;
+      font-size: .72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s, color .15s, transform .1s;
+      background: #fff;
+      white-space: nowrap;
+    }
+    .btn-fav  { border-color: #f9a825; color: #f9a825; }
+    .btn-rej  { border-color: #e53935; color: #e53935; }
+    .btn-unseen { border-color: #78909c; color: #78909c; font-size: .65rem; }
+    .btn-fav:hover  { background: #fff8e1; transform: scale(1.05); }
+    .btn-rej:hover  { background: #ffebee; transform: scale(1.05); }
+    .btn-unseen:hover { background: #eceff1; transform: scale(1.05); }
+    .btn-fav.active  { background: #f9a825; color: #fff; border-color: #f9a825; }
+    .btn-rej.active  { background: #e53935; color: #fff; border-color: #e53935; }
+
+    /* Card states */
+    .card.is-fav  { border: 2px solid #f9a825; box-shadow: 0 0 0 3px rgba(249,168,37,.15); }
+    .card.is-rej  { opacity: .45; filter: grayscale(.6); }
+    .card.is-seen .card-title { color: #78909c; }
+
+    /* Badge de status */
+    .badge-status {
+      position: absolute;
+      top: .5rem;
+      right: .5rem;
+      font-size: .65rem;
+      font-weight: 800;
+      border-radius: 999px;
+      padding: .15rem .45rem;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .badge-status.fav { background: #f9a825; color: #fff; }
+    .badge-status.rej { background: #e53935; color: #fff; }
+
+    /* Popup action buttons */
+    .pop-actions {
+      display: flex;
+      gap: .3rem;
+      margin-top: .5rem;
+      border-top: 1px solid #f0f0f0;
+      padding-top: .4rem;
+    }
+    .pop-btn-fav, .pop-btn-rej {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .2rem;
+      border: 1.5px solid;
+      border-radius: 6px;
+      padding: .28rem .4rem;
+      font-size: .68rem;
+      font-weight: 700;
+      cursor: pointer;
+      background: #fff;
+      transition: background .15s;
+    }
+    .pop-btn-fav { border-color: #f9a825; color: #f9a825; }
+    .pop-btn-rej { border-color: #e53935; color: #e53935; }
+    .pop-btn-fav:hover, .pop-btn-fav.active { background: #f9a825; color: #fff; }
+    .pop-btn-rej:hover, .pop-btn-rej.active { background: #e53935; color: #fff; }
+
     /* empty state */
     .empty-state {
       grid-column: 1 / -1;
@@ -663,6 +742,15 @@
       <option value="novo">Novos primeiro</option>
     </select>
   </div>
+  <div class="fg">
+    <label>Status</label>
+    <select id="fStatus">
+      <option value="">Todos</option>
+      <option value="fav">⭐ Favoritos</option>
+      <option value="unseen">👁 Não vistos</option>
+      <option value="rej">Ocultar rejeitados</option>
+    </select>
+  </div>
   <button class="btn-reset" onclick="resetFilters()">↺ Limpar</button>
   <div class="count-lbl" id="countLbl"></div>
 </div>
@@ -816,6 +904,14 @@ function popupContent(im) {
     <div style="font-size:.7rem;color:#546e7a;margin-bottom:.35rem">${bairro}</div>
     ${jardimCtx?`<div style="font-size:.68rem;color:#2e7d32;font-style:italic;margin-bottom:.35rem">"${trunc(jardimCtx,100)}"</div>`:''}
     <a class="pop-link" href="${im.url}" target="_blank" rel="noopener">Ver anúncio ↗</a>
+    <div class="pop-actions">
+      <button id="pop-fav-${im.id}" class="pop-btn-fav${FAVS.has(im.id)?' active':''}" onclick="toggleFav('${im.id}',event)">
+        ⭐ ${FAVS.has(im.id) ? 'Favoritado' : 'Favoritar'}
+      </button>
+      <button id="pop-rej-${im.id}" class="pop-btn-rej${REJS.has(im.id)?' active':''}" onclick="toggleRej('${im.id}',event)">
+        ✕ ${REJS.has(im.id) ? 'Rejeitado' : 'Rejeitar'}
+      </button>
+    </div>
   `;
 }
 
@@ -834,14 +930,18 @@ function renderCard(im) {
   const vagas = im.vagas && im.vagas !== 'N/A' ? im.vagas : null;
   const dataStr = im.data_coleta ? im.data_coleta.slice(0,10).split('-').reverse().join('/') : '—';
 
+  const isFav  = FAVS.has(im.id);
+  const isRej  = REJS.has(im.id);
+  const isSeen = SEENS.has(im.id);
   return `
-  <div class="card" data-id="${im.id}" onclick="activateCard('${im.id}')">
+  <div class="card${isFav?' is-fav':''}${isRej?' is-rej':''}${isSeen?' is-seen':''}" data-id="${im.id}" onclick="activateCard('${im.id}')">
     <div class="card-stripe ${stripeClass(im.preco_valor)}"></div>
     <div class="card-badges">
       <span class="badge ${badgeClass(tipo)}">${tipo}</span>
       ${isNovo ? '<span class="badge b-novo">⭐ Novo</span>' : ''}
       ${im.fonte === 'QuintoAndar' ? '<span class="badge b-qa">QA</span>' : im.fonte === 'RE/MAX' ? '<span class="badge b-rm">RM</span>' : '<span class="badge b-cnm">CNM</span>'}
     </div>
+    ${isFav ? '<span class="badge-status fav">⭐ Favorito</span>' : isRej ? '<span class="badge-status rej">✕ Rejeitado</span>' : '<span class="badge-status"></span>'}
     <div class="card-body">
       <div class="card-title">${im.titulo}</div>
       <div class="card-loc">
@@ -852,11 +952,19 @@ function renderCard(im) {
       </div>
       <div class="chips">
         ${im.quartos&&im.quartos!='N/A'?`<span class="chip b">🛏 ${im.quartos} qto${im.quartos>1?'s':''}</span>`:''}
-        ${im.area_m2&&im.area_m2!='N/A'?`<span class="chip">📐 ${im.area_m2} m²</span>`:''}
+        ${im.area_m2&&im.area_m2!='N/A'?`<span class="chip">📏 ${im.area_m2} m²</span>`:''}
         ${vagas?`<span class="chip">🚗 ${vagas} vaga${vagas>1?'s':''}</span>`:`<span class="chip">🚗 Garagem</span>`}
         <span class="chip g">🌿 Jardim</span>
       </div>
       ${jardimCtx?`<div class="jardim-quote">"${trunc(jardimCtx,140)}"</div>`:''}
+      <div class="action-btns">
+        <button class="btn-fav${isFav?' active':''}" onclick="toggleFav('${im.id}',event)" title="Favoritar">
+          ⭐ ${isFav ? 'Favoritado' : 'Favoritar'}
+        </button>
+        <button class="btn-rej${isRej?' active':''}" onclick="toggleRej('${im.id}',event)" title="Rejeitar">
+          ✕ ${isRej ? 'Rejeitado' : 'Rejeitar'}
+        </button>
+      </div>
     </div>
     <div class="card-foot">
       <div class="card-price">
@@ -874,8 +982,10 @@ function renderCard(im) {
   </div>`;
 }
 
-// ── Activate card + map sync ─────────────────────────────────
+// ── Activate card + map sync ─────────────────────────────────────────────
 function activateCard(id) {
+  // Mark as seen when clicked
+  markSeen(id);
   // Deactivate previous
   if (activeId) {
     const prevCard = document.querySelector(`.card[data-id="${activeId}"]`);
@@ -903,6 +1013,89 @@ function activateCard(id) {
   }
 }
 
+// ── Favoritos / Rejeições (localStorage) ───────────────────
+const LS_FAV  = 'imoveis_fav';
+const LS_REJ  = 'imoveis_rej';
+const LS_SEEN = 'imoveis_seen';
+
+function loadSet(key) {
+  try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); }
+  catch { return new Set(); }
+}
+function saveSet(key, set) {
+  localStorage.setItem(key, JSON.stringify([...set]));
+}
+
+let FAVS  = loadSet(LS_FAV);
+let REJS  = loadSet(LS_REJ);
+let SEENS = loadSet(LS_SEEN);
+
+function toggleFav(id, e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  if (FAVS.has(id)) {
+    FAVS.delete(id);
+  } else {
+    FAVS.add(id);
+    REJS.delete(id); // se estava rejeitado, remove
+  }
+  saveSet(LS_FAV, FAVS);
+  saveSet(LS_REJ, REJS);
+  markSeen(id);
+  refreshCardState(id);
+  refreshPopupButtons(id);
+}
+
+function toggleRej(id, e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  if (REJS.has(id)) {
+    REJS.delete(id);
+  } else {
+    REJS.add(id);
+    FAVS.delete(id); // se estava favoritado, remove
+  }
+  saveSet(LS_REJ, REJS);
+  saveSet(LS_FAV, FAVS);
+  markSeen(id);
+  refreshCardState(id);
+  refreshPopupButtons(id);
+}
+
+function markSeen(id) {
+  SEENS.add(id);
+  saveSet(LS_SEEN, SEENS);
+  refreshCardState(id);
+}
+
+function refreshCardState(id) {
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (!card) return;
+  card.classList.toggle('is-fav',  FAVS.has(id));
+  card.classList.toggle('is-rej',  REJS.has(id));
+  card.classList.toggle('is-seen', SEENS.has(id));
+  // badge status
+  let badge = card.querySelector('.badge-status');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'badge-status';
+    card.appendChild(badge);
+  }
+  if (FAVS.has(id))      { badge.className = 'badge-status fav'; badge.textContent = '⭐ Favorito'; }
+  else if (REJS.has(id)) { badge.className = 'badge-status rej'; badge.textContent = '✕ Rejeitado'; }
+  else                   { badge.className = 'badge-status'; badge.textContent = ''; }
+  // update buttons inside card
+  const btnF = card.querySelector('.btn-fav');
+  const btnR = card.querySelector('.btn-rej');
+  if (btnF) btnF.classList.toggle('active', FAVS.has(id));
+  if (btnR) btnR.classList.toggle('active', REJS.has(id));
+}
+
+function refreshPopupButtons(id) {
+  const pf = document.getElementById(`pop-fav-${id}`);
+  const pr = document.getElementById(`pop-rej-${id}`);
+  if (pf) pf.classList.toggle('active', FAVS.has(id));
+  if (pr) pr.classList.toggle('active', REJS.has(id));
+}
+
 // ── State ────────────────────────────────────────────────────
 let IMOVEIS = [];
 let CURRENT = [];
@@ -914,8 +1107,8 @@ function applyFilters() {
   const precoMax = parseInt(document.getElementById('fPreco').value);
   const novo   = document.getElementById('fNovo').value;
   const ordem  = document.getElementById('fOrdem').value;
-
   const fonte  = document.getElementById('fFonte').value;
+  const status = document.getElementById('fStatus').value;
 
   let lista = IMOVEIS.filter(im => {
     if (tipo   && tipoImovel(im.titulo) !== tipo) return false;
@@ -924,6 +1117,9 @@ function applyFilters() {
     if (im.preco_valor && im.preco_valor > precoMax) return false;
     if (novo === 'novo' && !im.eh_novo_ou_pouco_usado) return false;
     if (fonte && im.fonte !== fonte) return false;
+    if (status === 'fav'    && !FAVS.has(im.id)) return false;
+    if (status === 'unseen' && SEENS.has(im.id)) return false;
+    if (status === 'rej'    && REJS.has(im.id))  return false;
     return true;
   });
 
@@ -992,6 +1188,7 @@ function resetFilters() {
   document.getElementById('fNovo').value    = '';
   document.getElementById('fOrdem').value   = 'preco_asc';
   document.getElementById('fFonte').value   = '';
+  document.getElementById('fStatus').value  = '';
   document.getElementById('precoLbl').textContent = 'até R$ 900.000';
   applyFilters();
 }
@@ -1039,7 +1236,7 @@ async function init() { // returns Promise implicitly (async function)
   });
 
   // Other filters
-  ['fTipo','fBairro','fQuartos','fNovo','fOrdem','fFonte']
+  ['fTipo','fBairro','fQuartos','fNovo','fOrdem','fFonte','fStatus']
     .forEach(id => document.getElementById(id).addEventListener('change', applyFilters));
 
   // Initial render
