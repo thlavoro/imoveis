@@ -239,6 +239,7 @@
     .b-cnm     { background: #e8eaf6;          color: #283593; }
     .b-qa      { background: #fce4ec;          color: #880e4f; }
     .b-rm      { background: #fff3e0;          color: #e65100; }
+    .b-ll      { background: #e8f5e9;          color: #1b5e20; }
 
     .card-body {
       padding: .75rem .9rem .55rem;
@@ -685,6 +686,7 @@
     <span class="tstat"><strong id="stCNM">—</strong> Chaves na Mão</span>
     <span class="tstat"><strong id="stQA">—</strong> QuintoAndar</span>
     <span class="tstat"><strong id="stRM">—</strong> RE/MAX</span>
+    <span class="tstat"><strong id="stLL">—</strong> Lello</span>
     <span class="tstat"><strong id="stBairros">—</strong> bairros</span>
     <span class="tstat">atualizado <strong id="stData">—</strong></span>
   </div>
@@ -728,6 +730,7 @@
       <option value="Chaves na Mão">Chaves na Mão</option>
       <option value="QuintoAndar">QuintoAndar</option>
       <option value="RE/MAX">RE/MAX</option>
+      <option value="Lello">Lello Imóveis</option>
     </select>
   </div>
   <div class="fg">
@@ -804,6 +807,7 @@
       <div class="leg-row"><span style="font-size:.65rem;font-weight:700;background:#e8eaf6;color:#283593;border-radius:3px;padding:.1rem .3rem">CNM</span> Chaves na Mão</div>
       <div class="leg-row"><span style="font-size:.65rem;font-weight:700;background:#fce4ec;color:#880e4f;border-radius:3px;padding:.1rem .3rem">QA</span> QuintoAndar</div>
       <div class="leg-row"><span style="font-size:.65rem;font-weight:700;background:#fff3e0;color:#e65100;border-radius:3px;padding:.1rem .3rem">RM</span> RE/MAX</div>
+      <div class="leg-row"><span style="font-size:.65rem;font-weight:700;background:#e8f5e9;color:#1b5e20;border-radius:3px;padding:.1rem .3rem">LL</span> Lello Imóveis</div>
     </div>
   </div>
 
@@ -900,7 +904,7 @@ function popupContent(im) {
     <div class="pop-price">${fmtR(im.preco_valor)}</div>
     <div class="pop-chips">
       <span class="pop-chip">${tipo}</span>
-      ${im.fonte ? `<span class="pop-chip" style="background:${im.fonte==='QuintoAndar'?'#fce4ec':im.fonte==='RE/MAX'?'#fff3e0':'#e8eaf6'};color:${im.fonte==='QuintoAndar'?'#880e4f':im.fonte==='RE/MAX'?'#e65100':'#283593'}">${im.fonte}</span>` : ''}
+      ${im.fonte ? `<span class="pop-chip" style="background:${im.fonte==='QuintoAndar'?'#fce4ec':im.fonte==='RE/MAX'?'#fff3e0':im.fonte==='Lello'?'#e8f5e9':'#e8eaf6'};color:${im.fonte==='QuintoAndar'?'#880e4f':im.fonte==='RE/MAX'?'#e65100':im.fonte==='Lello'?'#1b5e20':'#283593'}">${im.fonte}</span>` : ''}
     ${im.quartos&&im.quartos!='N/A'?`<span class="pop-chip">🛏 ${im.quartos} qtos</span>`:''}
       ${im.area_m2&&im.area_m2!='N/A'?`<span class="pop-chip">📐 ${im.area_m2} m²</span>`:''}
       <span class="pop-chip g">🌿 Jardim</span>
@@ -944,7 +948,7 @@ function renderCard(im) {
     <div class="card-badges">
       <span class="badge ${badgeClass(tipo)}">${tipo}</span>
       ${isNovo ? '<span class="badge b-novo">⭐ Novo</span>' : ''}
-      ${im.fonte === 'QuintoAndar' ? '<span class="badge b-qa">QA</span>' : im.fonte === 'RE/MAX' ? '<span class="badge b-rm">RM</span>' : '<span class="badge b-cnm">CNM</span>'}
+      ${im.fonte === 'QuintoAndar' ? '<span class="badge b-qa">QA</span>' : im.fonte === 'RE/MAX' ? '<span class="badge b-rm">RM</span>' : im.fonte === 'Lello' ? '<span class="badge b-ll">LL</span>' : '<span class="badge b-cnm">CNM</span>'}
     </div>
     ${isFav ? '<span class="badge-status fav">⭐ Favorito</span>' : isRej ? '<span class="badge-status rej">✕ Rejeitado</span>' : '<span class="badge-status"></span>'}
     <div class="card-body">
@@ -1232,6 +1236,7 @@ async function init() { // returns Promise implicitly (async function)
   document.getElementById('stCNM').textContent     = IMOVEIS.filter(im => im.fonte === 'Chaves na Mão').length;
   document.getElementById('stQA').textContent      = IMOVEIS.filter(im => im.fonte === 'QuintoAndar').length;
   document.getElementById('stRM').textContent      = IMOVEIS.filter(im => im.fonte === 'RE/MAX').length;
+  document.getElementById('stLL').textContent      = IMOVEIS.filter(im => im.fonte === 'Lello').length;
 
   // Slider
   document.getElementById('fPreco').addEventListener('input', e => {
